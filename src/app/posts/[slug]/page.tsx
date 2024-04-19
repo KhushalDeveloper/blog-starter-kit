@@ -12,6 +12,8 @@ export default async function Post({ params }: Params) {
   if (!post) return notFound()
 
   const content = await markdownToHtml(post.content || '')
+
+
   return (
     <main>
       <Container>
@@ -21,6 +23,7 @@ export default async function Post({ params }: Params) {
             coverImage={post.coverImage}
             author={post.author}
             date={post.date}
+            content={content}
           />
         </article>
       </Container>
