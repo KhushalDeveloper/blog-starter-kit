@@ -1,64 +1,39 @@
 import Container from '@/app/_components/container'
-import { PostHeader } from '@/app/_components/post-header'
-import { getAllPosts, getPostBySlug } from '@/lib/api'
-import { CMS_NAME } from '@/lib/constants'
-import markdownToHtml from '@/lib/markdownToHtml'
-import { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { getPostBySlug } from '@/lib/api'
 
-export default async function Post({ params }: Params) {
-  const post = getPostBySlug(params.slug)
+const getPageContent = async (slugPromise: Promise<{ slug: string }[]>) => {
+  const slugs = await slugPromise // Resolve the promise
+  if (!Array.isArray(slugs)) {
+    throw new Error('Expected slugs to be an array')
+  }
+  const results = await Promise.all(
+    slugs.map(async ({ slug }) => {
+      const { meta, content } = await getPostBySlug(`${slug}.mdx`)
 
-  if (!post) return notFound()
+      const typedMeta = { ...meta, slug: slug.replace('.mdx', '') } as any
+      return { meta: typedMeta, content }
+    })
+  )
+  return results
+}
 
-  const content = await markdownToHtml(post.content || '')
+export async function generateMetaData({ params }: { params: any }) {
+  const results = await getPageContent(params.slug)
+  const { meta } = results[0]
+  return { title: meta?.title }
+}
 
-
+const Page = async ({ params }: { params: any }) => {
+  // Ensure params.slug is wrapped in a promise that resolves to an array
+  const slugPromise = Promise.resolve([{ slug: params.slug }])
+  const results = await getPageContent(slugPromise)
+  const { content } = results[0]
+  // Access the 'content' property correctly
   return (
-    <main>
-      <Container>
-        <article className='my-3'>
-          <PostHeader
-            title={post.title}
-            coverImage={post.coverImage}
-            author={post.author}
-            date={post.date}
-            content={content}
-          />
-        </article>
-      </Container>
-    </main>
+    <article>
+      <Container className='prose'>{content}</Container>
+    </article>
   )
 }
 
-type Params = {
-  params: {
-    slug: string
-  }
-}
-
-export function generateMetadata({ params }: Params): Metadata {
-  const post = getPostBySlug(params.slug)
-
-  if (!post) {
-    return notFound()
-  }
-
-  const title = `${post.title} | Next.js Blog Example with ${CMS_NAME}`
-
-  return {
-    title,
-    openGraph: {
-      title,
-      images: [post.ogImage.url],
-    },
-  }
-}
-
-export async function generateStaticParams() {
-  const posts = getAllPosts()
-
-  return posts.map((post) => ({
-    slug: post.slug,
-  }))
-}
+export default Page
